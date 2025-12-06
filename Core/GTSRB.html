@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTSRB - Traffic Sign Recognition</title>
+  <style>
+    /* ========== CSS BASE ========== */
+    :root {
+      --primary: #4a6cf7;
+      --success: #10b981;
+      --bg: #f5f7fa;
+      --card-bg: #ffffff;
+      --text: #1a1a2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background: var(--text);
+      color: #fff;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      display: grid;
+      grid-template-columns: 1fr 350px;
+      gap: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ========== CARDS ========== */
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      padding: 2rem;
+    }
+
+    h2 { margin-top: 0; font-size: 1.25rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; margin-bottom: 1.5rem;}
+
+    /* ========== DROP ZONE ========== */
+    .drop-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background: #f0f4ff;
+    }
+    .drop-zone input { display: none; }
+    
+    /* ========== PREVIEW AREA ========== */
+    .preview-area {
+      margin-top: 1.5rem;
+      display: none; /* Hidden by default */
+      text-align: center;
+    }
+    .preview-area img {
+      max-width: 250px;
+      max-height: 250px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    /* ========== BUTTONS GROUP ========== */
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      justify-content: center;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      flex: 1;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .btn-cnn { background: var(--primary); }
+    .btn-resnet { background: #8b5cf6; } /* Purple for ResNet */
+
+    /* ========== RESULTS PANEL ========== */
+    .result-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+      display: none; /* Hidden initially */
+    }
+    .result-box.visible { display: block; }
+
+    .prediction-label {
+      font-size: 0.85rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .prediction-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0.5rem 0;
+      line-height: 1.2;
+    }
+    .confidence-bar-bg {
+      background: #e2e8f0;
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+    }
+    .confidence-bar-fill {
+      height: 100%;
+      background: var(--success);
+      width: 0%;
+      transition: width 0.5s ease-out;
+    }
+    .model-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      background: #e0e7ff;
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    /* Error handling */
+    .error { color: #dc2626; background: #fee2e2; padding: 1rem; border-radius: 6px; display: none; margin-top: 1rem;}
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🚦GTSRB Recognizer</h1>
+  
+    <h4>German Traffic Signs Classification</h4>
+    <p>Upload an image and choose a model to classify</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1. Input Image</h2>
+      
+      <div class="drop-zone" id="dropZone">
+        <p>Drag & drop image here or click to browse</p>
+        <input type="file" id="fileInput" accept="image/*">
+      </div>
+
+      <div class="preview-area" id="previewArea">
+        <img id="previewImage" src="" alt="Preview">
+        
+        <div class="button-group" id="modelButtons">
+          <button class="btn btn-cnn" onclick="classifyImage('cnn')">
+            Run Custom CNN
+          </button>
+          <button class="btn btn-resnet" onclick="classifyImage('resnet')">
+            Run ResNet18
+          </button>
+        </div>
+      </div>
+      
+      <div class="error" id="errorMessage"></div>
+    </section>
+
+    <aside class="card">
+      <h2>2. Classification Result</h2>
+      
+      <div id="loading" style="display:none; color: #64748b;">Processing...</div>
+
+      <div class="result-box" id="resultBox">
+        <span class="model-badge" id="usedModelBadge">Model: -</span>
+        
+        <div class="prediction-label">Detected Sign</div>
+        <div class="prediction-name" id="signName">Waiting for input...</div>
+        
+        <div class="prediction-label" style="margin-top: 1rem;">Confidence</div>
+        <div class="confidence-bar-bg">
+          <div class="confidence-bar-fill" id="confBar"></div>
+        </div>
+        <div style="text-align: right; font-size: 0.85rem; margin-top: 4px;" id="confText">0%</div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // ==========================================
+    // 1. CONFIG & DATA MAPPING
+    // ==========================================
+    const API_URL = "http://127.0.0.1:5000/predict";
+
+    // Mapping exactly from your Notebook/CSV
+    const CLASS_MAPPING = {
+      0: 'Speed limit (20km/h)',
+      1: 'Speed limit (30km/h)',
+      2: 'Speed limit (50km/h)',
+      3: 'Speed limit (60km/h)',
+      4: 'Speed limit (70km/h)',
+      5: 'Speed limit (80km/h)',
+      6: 'End of speed limit (80km/h)',
+      7: 'Speed limit (100km/h)',
+      8: 'Speed limit (120km/h)',
+      9: 'No passing',
+      10: 'No passing veh over 3.5 tons',
+      11: 'Right-of-way at intersection',
+      12: 'Priority road',
+      13: 'Yield',
+      14: 'Stop',
+      15: 'No vehicles',
+      16: 'Veh > 3.5 tons prohibited',
+      17: 'No entry',
+      18: 'General caution',
+      19: 'Dangerous curve left',
+      20: 'Dangerous curve right',
+      21: 'Double curve',
+      22: 'Bumpy road',
+      23: 'Slippery road',
+      24: 'Road narrows on the right',
+      25: 'Road work',
+      26: 'Traffic signals',
+      27: 'Pedestrians',
+      28: 'Children crossing',
+      29: 'Bicycles crossing',
+      30: 'Beware of ice/snow',
+      31: 'Wild animals crossing',
+      32: 'End speed + passing limits',
+      33: 'Turn right ahead',
+      34: 'Turn left ahead',
+      35: 'Ahead only',
+      36: 'Go straight or right',
+      37: 'Go straight or left',
+      38: 'Keep right',
+      39: 'Keep left',
+      40: 'Roundabout mandatory',
+      41: 'End of no passing',
+      42: 'End no passing veh > 3.5 tons'
+    };
+
+    // ==========================================
+    // 2. UI INTERACTION LOGIC
+    // ==========================================
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const previewArea = document.getElementById('previewArea');
+    const previewImage = document.getElementById('previewImage');
+    const errorMsg = document.getElementById('errorMessage');
+    
+    // Global file variable
+    let currentFile = null;
+
+    // --- Drag & Drop Handlers ---
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if(e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      if(!file.type.startsWith('image/')) {
+        showError("Please upload an image file.");
+        return;
+      }
+      
+      currentFile = file;
+      errorMsg.style.display = 'none';
+      
+      // Show Preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        previewArea.style.display = 'block'; // This reveals the buttons too
+        resetResults();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetResults() {
+      document.getElementById('resultBox').classList.remove('visible');
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+    }
+
+    // ==========================================
+    // 3. API & CLASSIFICATION LOGIC
+    // ==========================================
+    async function classifyImage(modelType) {
+      if (!currentFile) return;
+
+      // UI Updates
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('resultBox').classList.remove('visible');
+      errorMsg.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('image', currentFile);
+      formData.append('model_type', modelType);
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        displayResult(data);
+
+      } catch (err) {
+        showError("API Error: " + err.message);
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    function displayResult(data) {
+      const resultBox = document.getElementById('resultBox');
+      const nameEl = document.getElementById('signName');
+      const confTextEl = document.getElementById('confText');
+      const confBarEl = document.getElementById('confBar');
+      const modelBadge = document.getElementById('usedModelBadge');
+
+      // 1. LOOK UP CLASS NAME
+      const signName = CLASS_MAPPING[data.class_id] || "Unknown Sign";
+      const confidencePercent = (data.confidence * 100).toFixed(1) + "%";
+
+      // 2. UPDATE DOM
+      nameEl.textContent = `${data.class_id} - ${signName}`;
+      confTextEl.textContent = confidencePercent;
+      confBarEl.style.width = confidencePercent;
+      
+      // Update badge style based on model
+      modelBadge.textContent = "Model: " + (data.model_used === 'resnet' ? "ResNet18" : "Custom CNN");
+      modelBadge.style.color = data.model_used === 'resnet' ? '#8b5cf6' : '#4a6cf7';
+      modelBadge.style.background = data.model_used === 'resnet' ? '#f3e8ff' : '#e0e7ff';
+
+      resultBox.classList.add('visible');
+    }
+  </script>
+</body>
+</html>
